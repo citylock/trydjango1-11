@@ -1,3 +1,5 @@
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
@@ -9,17 +11,21 @@ from .forms import RestaurantCreateForm, RestaurantLocationCreateForm
 
 
 # Create your views here.
+@login_required(login_url='/login/')
 def restaurant_createview(request):
     form = RestaurantLocationCreateForm(request.POST or None)
     errors = None
     if form.is_valid():
-        # customize
-        # like a pre_save
-        
-        form.save()
-        # like a post_save
-
-        return HttpResponseRedirect('/restaurants/')
+        if request.user.is_authenticated():
+            instance = form.save(commit=False)
+            # customize
+            # like a pre_save
+            instance.owner = request.user
+            instance.save()
+            # like a post_save
+            return HttpResponseRedirect('/restaurants/')
+        else: 
+            return HttpResponseRedirect('/login/')
     if form.errors: 
         errors = form.errors
 
@@ -79,11 +85,17 @@ class RestaurantDetailView(DetailView):
     #     rest_id = self.kwargs.get('rest_id')
     #     obj = get_object_or_404(RestaurantLocation, id=rest_id) # pk = rest_id 
     #     return obj
-
-class RestaurantLocationCreateView(CreateView):
+    # LoginRequiredMixin, 
+class RestaurantLocationCreateView(LoginRequiredMixin, CreateView):
     form_class = RestaurantLocationCreateForm
     template_name = 'restaurants/form.html'
     success_url = '/restaurants/'
+    # login_url = '/login/'    # also can set login_url in setting.py 
+
+    def form_valid(self, form):
+        instance = form.save(commit=False)
+        instance.owner = self.request.user # NOT be anomyous users
+        return super(RestaurantLocationCreateView, self).form_valid(form)
 
 
 # class SearchRestaurantListView(ListView):
